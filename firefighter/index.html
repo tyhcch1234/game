@@ -1,0 +1,1701 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#0a0d13">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1016'/%3E%3Cpath d='M32 10c7 9 12 15 12 22a12 12 0 0 1-24 0c0-7 5-13 12-22z' fill='%23ff7a18'/%3E%3Cpath d='M32 26c4 5 6 8 6 11a6 6 0 0 1-12 0c0-3 2-6 6-11z' fill='%23ffd27a'/%3E%3C/svg%3E">
+<title>消防英雄 3D · 火場救援任務</title>
+<meta name="description" content="3D 消防員救援遊戲：在 180 秒內撲滅火頭、救出被困居民。支援鍵盤、滑鼠與手機觸控。">
+<meta property="og:title" content="消防英雄 3D · 火場救援任務">
+<meta property="og:description" content="3D 消防員救援遊戲：180 秒內撲滅六處火頭、救出三位居民。">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --orange:#ff7a18; --red:#e63312; --cyan:#5fd6ff; --ink:#0b0e14;
+    --panel:linear-gradient(180deg,rgba(16,21,30,.86),rgba(9,12,18,.76));
+    --line:rgba(255,255,255,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{
+    margin:0;height:100%;background:#05070c;overflow:hidden;color:#eef3fb;
+    font-family:"PingFang HK","Noto Sans HK","Noto Sans TC","Microsoft JhengHei","Helvetica Neue",Arial,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:none;
+  }
+  canvas#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .hidden{opacity:0!important;pointer-events:none!important}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;display:flex;flex-direction:column;justify-content:space-between;
+       padding:max(12px,env(safe-area-inset-top)) 14px 14px;transition:opacity .35s;z-index:5}
+  .hud-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:9px 12px;
+         backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 10px 26px rgba(0,0,0,.4)}
+  .objective{min-width:132px}
+  .objective .row{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#a4b3c7;margin:3px 0;letter-spacing:.3px}
+  .objective b{margin-left:auto;color:#fff;font-variant-numeric:tabular-nums;font-size:14px;letter-spacing:.5px}
+  .objective svg{width:14px;height:14px;flex:0 0 auto}
+  .timerbox{text-align:center;min-width:118px;padding:8px 14px}
+  #timer{font-size:clamp(20px,4.6vw,26px);font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:1px;
+         color:#fff;text-shadow:0 0 18px rgba(255,140,60,.55)}
+  #timer.warn{color:#ff6b4a;animation:pulse 1s infinite}
+  .score{font-size:11.5px;color:#95a4b8;margin-top:2px;letter-spacing:.4px}
+  .score b{color:#ffce8a;font-variant-numeric:tabular-nums}
+  .topbtns{display:flex;gap:8px;pointer-events:auto}
+  .iconbtn{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--panel);
+           color:#cfdaea;font-size:12px;font-weight:600;cursor:pointer;backdrop-filter:blur(9px);letter-spacing:.5px}
+  .iconbtn:active{transform:scale(.95)}
+  .iconbtn.off{color:#6b7789}
+
+  .hud-bottom{display:flex;align-items:flex-end;justify-content:space-between;gap:14px}
+  .bars{display:flex;flex-direction:column;gap:7px;min-width:186px}
+  .barwrap{display:flex;flex-direction:column;gap:3px}
+  .barlabel{font-size:10.5px;color:#8fa0b6;letter-spacing:.6px;display:flex;justify-content:space-between}
+  .bar{height:11px;border-radius:7px;background:rgba(255,255,255,.10);overflow:hidden;border:1px solid rgba(255,255,255,.07)}
+  .fill{height:100%;width:100%;border-radius:6px;transition:width .12s linear}
+  .fill.hp{background:linear-gradient(90deg,#ff4433,#ff9b3d)}
+  .fill.water{background:linear-gradient(90deg,#1f8fe0,#7fe9ff)}
+  .hint{font-size:11.5px;color:#9aa9bd;background:rgba(8,11,17,.55);border:1px solid rgba(255,255,255,.06);
+        border-radius:10px;padding:6px 11px;letter-spacing:.3px;max-width:56vw;text-align:right}
+  #dmg{position:fixed;inset:0;pointer-events:none;opacity:0;z-index:4;
+       background:radial-gradient(ellipse at center,transparent 38%,rgba(180,20,10,.72) 100%);transition:opacity .18s}
+  #shake{position:fixed;inset:0;pointer-events:none;z-index:0}
+
+  /* ---------- toasts ---------- */
+  #toasts{position:fixed;left:50%;top:18%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;
+          align-items:center;z-index:8;pointer-events:none}
+  .toast{background:rgba(10,14,20,.86);border:1px solid rgba(255,138,60,.35);color:#ffd9b8;padding:8px 16px;
+         border-radius:999px;font-size:13px;letter-spacing:.4px;animation:toastIn .28s ease-out;white-space:nowrap;
+         box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .toast.good{border-color:rgba(95,214,255,.42);color:#d6f4ff}
+  .toast.bad{border-color:rgba(255,80,60,.45);color:#ffc4b8}
+
+  /* ---------- touch ---------- */
+  #touch{position:fixed;inset:0;pointer-events:none;z-index:6;display:none}
+  #stick{position:absolute;left:20px;bottom:24px;width:126px;height:126px;border-radius:50%;
+         border:2px solid rgba(255,255,255,.16);background:rgba(10,16,24,.42);pointer-events:auto;
+         backdrop-filter:blur(4px)}
+  #knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;
+        background:radial-gradient(circle at 38% 32%,#e8f1fb,#93a7bd);box-shadow:0 5px 14px rgba(0,0,0,.45)}
+  .tbtn{position:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.28);color:#fff;font-weight:700;
+        letter-spacing:1px;pointer-events:auto;background:radial-gradient(circle at 38% 28%,#ffa15a,#cf3511);
+        box-shadow:0 10px 26px rgba(0,0,0,.45),inset 0 -4px 10px rgba(0,0,0,.25);font-family:inherit}
+  .tbtn:active{transform:scale(.94)}
+  #btnSpray{right:20px;bottom:26px;width:96px;height:96px;font-size:17px}
+  #btnRescue{right:32px;bottom:138px;width:74px;height:74px;font-size:14px;
+             background:radial-gradient(circle at 38% 28%,#7fd0ff,#1c6ea8)}
+  #btnRescue:disabled{opacity:.35}
+
+  /* ---------- overlays ---------- */
+  .overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:18px;overflow-x:hidden;
+           background:radial-gradient(circle at 50% 35%,rgba(38,16,8,.55),rgba(3,5,9,.93) 70%);
+           backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);transition:opacity .4s;overflow:auto}
+  .card{width:min(580px,94vw);background:linear-gradient(180deg,rgba(19,24,34,.96),rgba(9,12,18,.98));
+        border:1px solid rgba(255,255,255,.11);border-radius:22px;padding:clamp(20px,4.4vw,34px);
+        box-shadow:0 34px 90px rgba(0,0,0,.65),inset 0 1px 0 rgba(255,255,255,.06);text-align:center;
+        animation:cardIn .5s cubic-bezier(.2,.9,.25,1)}
+  .brow{display:inline-flex;align-items:center;gap:8px;font-size:11px;letter-spacing:2.4px;color:#ffab73;
+        border:1px solid rgba(255,140,70,.28);border-radius:999px;padding:5px 13px;margin-bottom:14px;background:rgba(255,120,40,.07)}
+  h1{font-size:clamp(28px,6.4vw,42px);line-height:1.12;margin:0 0 8px;letter-spacing:2px;font-weight:800;
+     background:linear-gradient(180deg,#ffffff 10%,#ffc48a 55%,#ff5a1f 100%);
+     -webkit-background-clip:text;background-clip:text;color:transparent;
+     filter:drop-shadow(0 6px 24px rgba(255,110,30,.35))}
+  .sub{color:#9fb0c6;font-size:13.5px;letter-spacing:.6px;margin:0 0 20px}
+  .rules{text-align:left;display:grid;gap:9px;margin:0 0 22px;background:rgba(255,255,255,.035);
+         border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px 16px}
+  .rules div{display:flex;gap:10px;font-size:13px;color:#c3cfdd;line-height:1.5}
+  .rules .k{flex:0 0 74px;color:#ffb27a;font-weight:600;font-size:12px;letter-spacing:.5px;padding-top:1px}
+  .btn{width:100%;padding:15px 20px;border-radius:14px;border:none;cursor:pointer;font-family:inherit;
+       font-size:16px;font-weight:700;letter-spacing:2px;color:#fff;
+       background:linear-gradient(135deg,#ff8a2b,#e23c10);
+       box-shadow:0 12px 30px rgba(226,60,16,.38),inset 0 1px 0 rgba(255,255,255,.25);
+       transition:transform .15s,box-shadow .15s}
+  .btn:hover{transform:translateY(-1px);box-shadow:0 16px 36px rgba(226,60,16,.48)}
+  .btn:active{transform:scale(.985)}
+  .note{font-size:11px;color:#6b7a8d;margin-top:13px;letter-spacing:.4px}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:0 0 20px}
+  .stat{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px}
+  .stat span{display:block;font-size:11px;color:#8fa0b6;letter-spacing:.8px;margin-bottom:4px}
+  .stat b{font-size:20px;color:#fff;font-variant-numeric:tabular-nums}
+  .stars{font-size:24px;letter-spacing:6px;color:#ffb64a;margin:2px 0 14px;height:30px}
+  .stars .dim{color:#3a4250}
+  #diag{position:fixed;left:0;bottom:0;z-index:99;font:11px/1.35 monospace;color:#7fffb0;
+        background:rgba(0,0,0,.55);padding:2px 6px;max-width:100%;white-space:pre-wrap;pointer-events:none;display:none}
+
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  @keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  @keyframes cardIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+  body.touch #stick{width:116px;height:116px;left:16px;bottom:20px}
+  body.touch #knob{width:48px;height:48px;margin:-24px 0 0 -24px}
+  body.touch .bars{position:fixed;left:16px;bottom:150px;min-width:132px;padding:8px 10px;gap:5px}
+  body.touch .hint{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 86px);transform:translateX(-50%);
+                   max-width:72vw;text-align:center;font-size:10.5px;border:none;background:transparent;color:#93a3b8}
+  body.touch .hud-bottom{display:block}
+  .iconbtn{width:42px;padding:0;font-size:11px;letter-spacing:0}
+  @media (max-width:640px){
+    .hint{max-width:none;font-size:10.5px;padding:5px 9px}
+    .bars{min-width:150px}
+    .objective{min-width:118px;padding:8px 10px}
+    .timerbox{min-width:96px;padding:6px 10px}
+    .hud-bottom{gap:8px}
+  }
+  @media (max-height:520px){
+    #stick{width:104px;height:104px}
+    #btnSpray{width:80px;height:80px}
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="dmg"></div>
+
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="panel objective">
+      <div class="row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#ff9a52" stroke-width="1.8"><path d="M12 3c2.5 3.2 4.5 5.6 4.5 8.6A4.5 4.5 0 0 1 12 16a4.5 4.5 0 0 1-4.5-4.4C7.5 8.6 9.5 6.2 12 3Z"/><path d="M12 20c-1.4 0-2.6-1-2.6-2.3 0-1.6 2.6-3.7 2.6-3.7s2.6 2.1 2.6 3.7c0 1.3-1.2 2.3-2.6 2.3Z"/></svg>
+        <span>火頭</span><b id="statFire">0 / 6</b>
+      </div>
+      <div class="row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#7fd0ff" stroke-width="1.8"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20c.6-3.4 3.2-5.4 6.5-5.4s5.9 2 6.5 5.4"/></svg>
+        <span>居民</span><b id="statCiv">0 / 3</b>
+      </div>
+    </div>
+    <div class="panel timerbox">
+      <div id="timer">03:00</div>
+      <div class="score">分數 <b id="score">0</b></div>
+    </div>
+    <div class="topbtns">
+      <button id="btnMute" class="iconbtn" title="音效開關">音效</button>
+      <button id="btnPause" class="iconbtn" title="暫停">暫停</button>
+    </div>
+  </div>
+
+  <div class="hud-bottom">
+    <div class="panel bars">
+      <div class="barwrap">
+        <div class="barlabel"><span>生命</span><span id="hpTxt">100</span></div>
+        <div class="bar"><div class="fill hp" id="hpFill"></div></div>
+      </div>
+      <div class="barwrap">
+        <div class="barlabel"><span>水量</span><span id="waterTxt">100%</span></div>
+        <div class="bar"><div class="fill water" id="waterFill"></div></div>
+      </div>
+    </div>
+    <div class="hint" id="hint">按住左鍵噴水 · WASD 移動</div>
+  </div>
+</div>
+
+<div id="touch">
+  <div id="stick"><div id="knob"></div></div>
+  <button id="btnSpray" class="tbtn">噴水</button>
+  <button id="btnRescue" class="tbtn">救援</button>
+</div>
+
+<div id="toasts"></div>
+
+<div class="overlay" id="start">
+  <div class="card">
+    <div class="brow">FIRE RESCUE · 3D</div>
+    <h1>消防英雄 3D</h1>
+    <p class="sub">黑夜、濃煙、六處火頭 —— 180 秒內救出所有人。</p>
+    <div class="rules">
+      <div><span class="k">移動</span><span>WASD / 方向鍵；手機用左下角虛擬搖桿</span></div>
+      <div><span class="k">環視</span><span>拖曳畫面環視；點擊畫面可鎖定滑鼠視角（Esc 解除）</span></div>
+      <div><span class="k">噴水</span><span>按住滑鼠左鍵或空白鍵，向火頭射水直至撲熄</span></div>
+      <div><span class="k">救援</span><span>走近居民按 E（手機按「救援」），附近有火要先撲滅</span></div>
+      <div><span class="k">注意</span><span>太靠近火焰會受傷；水量用完要等水壓回升</span></div>
+    </div>
+    <button class="btn" id="btnStart">開 始 任 務</button>
+    <div class="fuß">建議用桌面瀏覽器 · 手機橫向遊玩體驗更佳</div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="end">
+  <div class="card">
+    <div class="brow" id="endTag">MISSION REPORT</div>
+    <h1 id="endTitle">任務完成</h1>
+    <p class="sub" id="endSub">全員平安，火勢受控。</p>
+    <div class="stars" id="endStars"></div>
+    <div class="stats">
+      <div class="stat"><span>火頭撲滅</span><b id="endFire">0 / 6</b></div>
+      <div class="stat"><span>居民獲救</span><b id="endCiv">0 / 3</b></div>
+      <div class="stat"><span>剩餘時間</span><b id="endTime">0s</b></div>
+      <div class="stat"><span>總分</span><b id="endScore">0</b></div>
+    </div>
+    <button class="btn" id="btnAgain">再 挑 戰 一 次</button>
+    <div class="fuß" id="endTip">提示：先撲滅擋路的火，再救居民會更安全。</div>
+  </div>
+</div>
+
+<div id="diag"></div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* =========================================================
+   0. 基本工具
+   ========================================================= */
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+
+function diag(msg) {
+  const d = $('diag');
+  d.style.display = 'block';
+  d.textContent = (d.textContent + '\n' + msg).slice(-800);
+}
+window.addEventListener('error', (e) => diag('ERR: ' + (e.message || e.error)));
+window.addEventListener('unhandledrejection', (e) => diag('REJ: ' + (e.reason && e.reason.message)));
+
+/* =========================================================
+   1. 程序化貼圖（無外部素材）
+   ========================================================= */
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  draw(g, w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+const flameTex = canvasTex(128, 128, (g) => {
+  g.clearRect(0, 0, 128, 128);
+  // 外焰
+  const grad = g.createLinearGradient(0, 14, 0, 118);
+  grad.addColorStop(0, 'rgba(255,110,20,0)');
+  grad.addColorStop(0.18, 'rgba(255,120,25,0.42)');
+  grad.addColorStop(0.45, 'rgba(255,165,55,0.82)');
+  grad.addColorStop(0.72, 'rgba(255,205,120,0.95)');
+  grad.addColorStop(1, 'rgba(255,235,190,0.98)');
+  g.fillStyle = grad;
+  g.beginPath();
+  g.moveTo(64, 12);
+  g.bezierCurveTo(78, 44, 96, 62, 96, 88);
+  g.bezierCurveTo(96, 108, 82, 120, 64, 120);
+  g.bezierCurveTo(46, 120, 32, 108, 32, 88);
+  g.bezierCurveTo(32, 62, 50, 44, 64, 12);
+  g.closePath();
+  g.fill();
+  // 側焰
+  for (const [x, top, w] of [[34, 46, 17], [94, 52, 15]]) {
+    const gg = g.createLinearGradient(0, top, 0, 112);
+    gg.addColorStop(0, 'rgba(255,120,20,0)');
+    gg.addColorStop(0.6, 'rgba(255,150,40,0.55)');
+    gg.addColorStop(1, 'rgba(255,210,130,0.8)');
+    g.fillStyle = gg;
+    g.beginPath();
+    g.moveTo(x, top);
+    g.bezierCurveTo(x + w, top + 26, x + w * 0.9, 96, x, 106);
+    g.bezierCurveTo(x - w * 0.9, 96, x - w, top + 26, x, top);
+    g.closePath();
+    g.fill();
+  }
+  // 內焰
+  const core = g.createLinearGradient(0, 48, 0, 120);
+  core.addColorStop(0, 'rgba(255,220,150,0)');
+  core.addColorStop(0.45, 'rgba(255,245,210,0.85)');
+  core.addColorStop(1, 'rgba(255,255,245,1)');
+  g.fillStyle = core;
+  g.beginPath();
+  g.moveTo(64, 50);
+  g.bezierCurveTo(74, 76, 82, 86, 82, 100);
+  g.bezierCurveTo(82, 112, 74, 120, 64, 120);
+  g.bezierCurveTo(54, 120, 46, 112, 46, 100);
+  g.bezierCurveTo(46, 86, 54, 76, 64, 50);
+  g.closePath();
+  g.fill();
+});
+
+const smokeTex = canvasTex(128, 128, (g) => {
+  const grd = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grd.addColorStop(0, 'rgba(255,255,255,0.85)');
+  grd.addColorStop(0.45, 'rgba(210,215,225,0.35)');
+  grd.addColorStop(1, 'rgba(160,170,185,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+});
+
+const dropTex = canvasTex(64, 64, (g) => {
+  const grd = g.createRadialGradient(32, 30, 1, 32, 32, 30);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.4, 'rgba(190,238,255,0.85)');
+  grd.addColorStop(1, 'rgba(120,200,255,0)');
+  g.fillStyle = grd; g.beginPath(); g.arc(32, 32, 30, 0, Math.PI * 2); g.fill();
+});
+
+const sparkTex = canvasTex(32, 32, (g) => {
+  const grd = g.createRadialGradient(16, 16, 0, 16, 16, 15);
+  grd.addColorStop(0, 'rgba(255,240,190,1)');
+  grd.addColorStop(0.5, 'rgba(255,150,50,0.75)');
+  grd.addColorStop(1, 'rgba(255,90,0,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 32, 32);
+});
+
+const asphaltTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#23262c'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 5200; i++) {
+    const v = 28 + Math.random() * 42;
+    g.fillStyle = `rgba(${v},${v + 2},${v + 6},${Math.random() * 0.5})`;
+    g.fillRect(Math.random() * w, Math.random() * h, 1.6, 1.6);
+  }
+  g.strokeStyle = 'rgba(12,13,16,0.55)';
+  for (let i = 0; i < 16; i++) {
+    g.lineWidth = Math.random() * 1.6 + 0.4;
+    g.beginPath();
+    let x = Math.random() * w, y = Math.random() * h;
+    g.moveTo(x, y);
+    for (let s = 0; s < 5; s++) { x += rand(-26, 26); y += rand(-26, 26); g.lineTo(x, y); }
+    g.stroke();
+  }
+});
+asphaltTex.wrapS = asphaltTex.wrapT = THREE.RepeatWrapping;
+asphaltTex.repeat.set(14, 14);
+
+const facadeTex = canvasTex(512, 512, (g, w, h) => {
+  // 牆身
+  const wall = g.createLinearGradient(0, 0, 0, h);
+  wall.addColorStop(0, '#3b3d44');
+  wall.addColorStop(0.5, '#2e3037');
+  wall.addColorStop(1, '#24262c');
+  g.fillStyle = wall; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 2600; i++) {
+    const v = 30 + Math.random() * 40;
+    g.fillStyle = `rgba(${v},${v},${v + 4},${Math.random() * 0.30})`;
+    g.fillRect(Math.random() * w, Math.random() * h, 2.2, 5 + Math.random() * 10);
+  }
+  // 窗戶 4 行 x 4 列
+  const cols = 4, rows = 4, padX = 34, padY = 26;
+  const cw = (w - padX * 2) / cols, ch = (h - padY * 2) / rows;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = padX + c * cw + 12, y = padY + r * ch + 12;
+      const ww = cw - 24, wh = ch - 30;
+      // 窗框
+      g.fillStyle = '#15171c';
+      g.fillRect(x - 5, y - 5, ww + 10, wh + 10);
+      const lit = Math.random() < 0.34;
+      if (lit) {
+        const gl = g.createLinearGradient(x, y, x, y + wh);
+        gl.addColorStop(0, 'rgba(255,206,130,0.95)');
+        gl.addColorStop(1, 'rgba(255,160,70,0.62)');
+        g.fillStyle = gl;
+      } else {
+        const gl = g.createLinearGradient(x, y, x + ww, y + wh);
+        gl.addColorStop(0, '#0d1118');
+        gl.addColorStop(0.5, '#1b2531');
+        gl.addColorStop(1, '#0a0d13');
+        g.fillStyle = gl;
+      }
+      g.fillRect(x, y, ww, wh);
+      // 窗格
+      g.strokeStyle = 'rgba(10,12,16,0.85)'; g.lineWidth = 3;
+      g.beginPath();
+      g.moveTo(x + ww / 2, y); g.lineTo(x + ww / 2, y + wh);
+      g.moveTo(x, y + wh / 2); g.lineTo(x + ww, y + wh / 2);
+      g.stroke();
+    }
+  }
+  // 污漬 / 煙熏
+  for (let i = 0; i < 42; i++) {
+    const x = Math.random() * w, y = Math.random() * h * 0.7;
+    const rg = g.createRadialGradient(x, y, 1, x, y, 14 + Math.random() * 34);
+    rg.addColorStop(0, 'rgba(8,8,10,0.42)');
+    rg.addColorStop(1, 'rgba(8,8,10,0)');
+    g.fillStyle = rg; g.beginPath(); g.arc(x, y, 46, 0, Math.PI * 2); g.fill();
+  }
+});
+facadeTex.wrapS = facadeTex.wrapT = THREE.RepeatWrapping;
+facadeTex.repeat.set(2.2, 1.35);
+
+const signTex = canvasTex(512, 128, (g, w, h) => {
+  g.fillStyle = '#0d1016'; g.fillRect(0, 0, w, h);
+  g.strokeStyle = 'rgba(255,170,90,0.65)'; g.lineWidth = 5; g.strokeRect(6, 6, w - 12, h - 12);
+  g.fillStyle = '#ffb877';
+  g.font = 'bold 64px "PingFang HK","Noto Sans HK",sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('永安大廈', w / 2, h / 2 + 4);
+});
+
+/* =========================================================
+   2. Renderer / Scene / Camera
+   ========================================================= */
+const canvas = $('game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0f18, 0.017);
+
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.08, 260);
+camera.rotation.order = 'YXZ';
+camera.position.set(0, 1.68, 12);
+
+// 夜空
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(190, 32, 18),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false,
+    uniforms: { top: { value: new THREE.Color(0x0b1730) }, bot: { value: new THREE.Color(0x05070c) } },
+    vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 bot; varying float h; void main(){ gl_FragColor = vec4(mix(bot, top, clamp(h*1.35+0.12,0.0,1.0)), 1.0); }'
+  })
+);
+scene.add(sky);
+
+// 星
+{
+  const N = 520, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const th = rand(0, Math.PI * 2), ph = rand(0.06, 1.4), r = 165;
+    pos[i * 3] = Math.cos(th) * Math.sin(ph) * r;
+    pos[i * 3 + 1] = Math.cos(ph) * r * 0.9 + 10;
+    pos[i * 3 + 2] = Math.sin(th) * Math.sin(ph) * r;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9fb6e0, size: 0.7, sizeAttenuation: true, transparent: true, opacity: 0.75, depthWrite: false })));
+}
+
+// 燈光
+scene.add(new THREE.HemisphereLight(0x3a5273, 0x0c0f15, 1.5));
+const moon = new THREE.DirectionalLight(0xa8c0ff, 1.7);
+moon.position.set(-26, 34, 18);
+moon.castShadow = true;
+moon.shadow.mapSize.set(1024, 1024);
+moon.shadow.camera.left = -40; moon.shadow.camera.right = 40;
+moon.shadow.camera.top = 40; moon.shadow.camera.bottom = -30;
+moon.shadow.camera.far = 110;
+moon.shadow.bias = -0.0012;
+scene.add(moon);
+
+const hemi = new THREE.AmbientLight(0x36405a, 0.9);
+scene.add(hemi);
+
+/* =========================================================
+   3. 場景建構
+   ========================================================= */
+const colliders = [];   // {x1,x2,z1,z2}
+function addCollider(cx, cz, w, d) {
+  colliders.push({ x1: cx - w / 2, x2: cx + w / 2, z1: cz - d / 2, z2: cz + d / 2 });
+}
+
+const world = new THREE.Group();
+scene.add(world);
+
+// 地面
+{
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(150, 150),
+    new THREE.MeshStandardMaterial({ map: asphaltTex, color: 0xa8adb6, roughness: 0.95, metalness: 0.03 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  world.add(ground);
+
+  // 行人路 + 路緣
+  const walkMat = new THREE.MeshStandardMaterial({ color: 0x5a5f68, roughness: 0.92 });
+  const curbMat = new THREE.MeshStandardMaterial({ color: 0x878d97, roughness: 0.85 });
+  for (const z of [-7.6, 17]) {
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(90, 0.22, 3.2), walkMat);
+    walk.position.set(0, 0.11, z);
+    walk.receiveShadow = true; world.add(walk);
+  }
+  const curb = new THREE.Mesh(new THREE.BoxGeometry(90, 0.3, 0.36), curbMat);
+  curb.position.set(0, 0.15, -9.3); curb.receiveShadow = true; world.add(curb);
+
+  // 路中線
+  const lineMat = new THREE.MeshStandardMaterial({ color: 0xd8d2b8, roughness: 0.7, emissive: 0x2a2515 });
+  for (let i = -5; i <= 5; i++) {
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.02, 0.24), lineMat);
+    dash.position.set(i * 5.6, 0.015, 14.4);
+    world.add(dash);
+  }
+}
+
+/* ---- 主建築 ---- */
+const building = new THREE.Group();
+world.add(building);
+{
+  const W = 26, H = 16, D = 12, CX = 0, CZ = -15;
+  const plainMat = new THREE.MeshStandardMaterial({ color: 0x2c2f36, roughness: 0.94 });
+  const faceMat = new THREE.MeshStandardMaterial({ map: facadeTex, emissiveMap: facadeTex, emissive: 0xffffff, emissiveIntensity: 0.45, color: 0xc6cbd3, roughness: 0.9 });
+  const mats = [faceMat, faceMat, plainMat, plainMat, faceMat, faceMat];
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), mats);
+  body.position.set(CX, H / 2, CZ);
+  body.castShadow = true; body.receiveShadow = true;
+  building.add(body);
+  addCollider(CX, CZ, W, D);
+
+  // 天台圍欄 + 樓梯屋
+  const parapetMat = new THREE.MeshStandardMaterial({ color: 0x33363d, roughness: 0.9 });
+  for (const [w, d, x, z] of [[W, 0.5, CX, CZ - D / 2 + 0.25], [W, 0.5, CX, CZ + D / 2 - 0.25], [0.5, D, CX - W / 2 + 0.25, CZ], [0.5, D, CX + W / 2 - 0.25, CZ]]) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(w, 1.1, d), parapetMat);
+    p.position.set(x, H + 0.55, z); p.castShadow = true; building.add(p);
+  }
+  const stair = new THREE.Mesh(new THREE.BoxGeometry(4, 2.4, 3.4), parapetMat);
+  stair.position.set(-7, H + 1.2, CZ - 2); stair.castShadow = true; building.add(stair);
+
+  // 入口
+  const recess = new THREE.Mesh(new THREE.BoxGeometry(4.6, 3.6, 0.3), new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 1 }));
+  recess.position.set(0, 1.8, CZ + D / 2 + 0.06); building.add(recess);
+  const doorLight = new THREE.Mesh(new THREE.PlaneGeometry(4.0, 3.2), new THREE.MeshBasicMaterial({ color: 0xffa860, transparent: true, opacity: 0.16 }));
+  doorLight.position.set(0, 1.8, CZ + D / 2 + 0.22); building.add(doorLight);
+
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(6.6, 0.34, 2.4), new THREE.MeshStandardMaterial({ color: 0x24272d, roughness: 0.8 }));
+  canopy.position.set(0, 3.9, CZ + D / 2 + 1.1); canopy.castShadow = true; building.add(canopy);
+
+  // 招牌
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(6.2, 1.55), new THREE.MeshBasicMaterial({ map: signTex, transparent: true }));
+  sign.position.set(0, 5.3, CZ + D / 2 + 0.12); building.add(sign);
+
+  // 露台
+  const balMat = new THREE.MeshStandardMaterial({ color: 0x3a3d45, roughness: 0.85 });
+  for (const [x, y] of [[-7.2, 6.4], [7.2, 6.4], [-7.2, 10.4], [7.2, 10.4]]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.24, 1.5), balMat);
+    b.position.set(x, y, CZ + D / 2 + 0.75); b.castShadow = true; building.add(b);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(5.4, 0.9, 0.12), balMat);
+    rail.position.set(x, y + 0.55, CZ + D / 2 + 1.42); building.add(rail);
+  }
+
+  // 破壞的窗（黑框）
+  const holeMat = new THREE.MeshBasicMaterial({ color: 0x05060a });
+  for (const [x, y] of [[-3.2, 3.5], [4.6, 3.6], [0.4, 6.2], [-9.6, 3.5]]) {
+    const hole = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.0), holeMat);
+    hole.position.set(x, y, CZ + D / 2 + 0.14); building.add(hole);
+  }
+}
+
+/* ---- 兩側樓宇 ---- */
+function sideBuilding(x, z, w, h, d, tint) {
+  const mat = new THREE.MeshStandardMaterial({ map: facadeTex, emissiveMap: facadeTex, emissive: 0xffffff, emissiveIntensity: 0.3, color: tint, roughness: 0.95 });
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  b.position.set(x, h / 2, z);
+  b.castShadow = true; b.receiveShadow = true;
+  world.add(b);
+  addCollider(x, z, w, d);
+  return b;
+}
+sideBuilding(-26, -18, 16, 24, 14, 0x8d94a0);
+sideBuilding(-24, 8, 12, 15, 10, 0x7d838f);
+sideBuilding(26, -20, 18, 27, 16, 0x848b98);
+sideBuilding(25, 9, 13, 18, 11, 0x767c88);
+
+/* ---- 消防車 ---- */
+const truck = new THREE.Group();
+{
+  const red = new THREE.MeshStandardMaterial({ color: 0xb62a1b, roughness: 0.55, metalness: 0.25 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1a1c21, roughness: 0.75 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x22303f, roughness: 0.18, metalness: 0.75 });
+  const silver = new THREE.MeshStandardMaterial({ color: 0xaab2bd, roughness: 0.35, metalness: 0.8 });
+
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.55, 7.6), dark);
+  chassis.position.y = 0.75; chassis.castShadow = true; truck.add(chassis);
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.1, 4.6), red);
+  body.position.set(0, 2.05, -1.1); body.castShadow = true; body.receiveShadow = true; truck.add(body);
+
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.85, 2.3), red);
+  cab.position.set(0, 1.95, 2.5); cab.castShadow = true; truck.add(cab);
+
+  const wind = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.9, 0.08), glass);
+  wind.position.set(0, 2.35, 3.62); truck.add(wind);
+  for (const sx of [-1.27, 1.27]) {
+    const sw = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.8, 1.5), glass);
+    sw.position.set(sx, 2.3, 2.5); truck.add(sw);
+  }
+
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(2.54, 0.22, 6.9), new THREE.MeshStandardMaterial({ color: 0xe9eef5, roughness: 0.6 }));
+  stripe.position.set(0, 1.28, 0.3); truck.add(stripe);
+
+  // 器材櫃門
+  for (const z of [-2.6, -1.1, 0.4]) {
+    const door = new THREE.Mesh(new THREE.BoxGeometry(2.54, 1.35, 1.25), new THREE.MeshStandardMaterial({ color: 0x9d2317, roughness: 0.6, metalness: 0.2 }));
+    door.position.set(0, 1.95, z); truck.add(door);
+  }
+
+  // 雲梯
+  const ladder = new THREE.Group();
+  for (const sx of [-0.42, 0.42]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 6.6), silver);
+    rail.position.set(sx, 0, 0); ladder.add(rail);
+  }
+  for (let i = -3; i <= 3; i++) {
+    const rung = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.08), silver);
+    rung.position.set(0, 0, i * 0.95); ladder.add(rung);
+  }
+  ladder.position.set(0, 3.25, -0.8);
+  ladder.rotation.x = -0.05;
+  truck.add(ladder);
+
+  // 警燈（紅藍交替閃爍）
+  const barRedMat = new THREE.MeshStandardMaterial({ color: 0x3a0a0a, emissive: 0xff2020, emissiveIntensity: 2, roughness: 0.4 });
+  const barBlueMat = new THREE.MeshStandardMaterial({ color: 0x0a1030, emissive: 0x2f6bff, emissiveIntensity: 2, roughness: 0.4 });
+  const barRed = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.2, 0.32), barRedMat);
+  barRed.position.set(-0.42, 2.96, 3.22); truck.add(barRed);
+  const barBlue = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.2, 0.32), barBlueMat);
+  barBlue.position.set(0.42, 2.96, 3.22); truck.add(barBlue);
+  window.__barMats = { red: barRedMat, blue: barBlueMat };
+
+  // 車輪
+  for (const [x, z] of [[-1.22, 2.5], [1.22, 2.5], [-1.22, -1.9], [1.22, -1.9], [-1.22, -3.2], [1.22, -3.2]]) {
+    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.42, 18), new THREE.MeshStandardMaterial({ color: 0x141519, roughness: 0.95 }));
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(x, 0.62, z);
+    wheel.castShadow = true;
+    truck.add(wheel);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.46, 12), silver);
+    hub.rotation.z = Math.PI / 2; hub.position.set(x, 0.62, z); truck.add(hub);
+  }
+
+  truck.position.set(14.5, 0, 4.2);
+  truck.rotation.y = -0.16;
+  world.add(truck);
+  addCollider(14.5, 4.2, 3.2, 8.4);
+}
+
+/* ---- 街燈 ---- */
+const lampMat = new THREE.MeshStandardMaterial({ color: 0x2a2e35, roughness: 0.7, metalness: 0.5 });
+function streetLamp(x, z) {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 7, 10), lampMat);
+  pole.position.y = 3.5; pole.castShadow = true; g.add(pole);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.14, 0.14), lampMat);
+  arm.position.set(0.7, 6.9, 0); g.add(arm);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.22, 0.42), new THREE.MeshStandardMaterial({ color: 0xffd9a0, emissive: 0xffb469, emissiveIntensity: 2.2 }));
+  head.position.set(1.35, 6.78, 0); g.add(head);
+  const L = new THREE.PointLight(0xffc98a, 18, 18, 2);
+  L.position.set(1.35, 6.6, 0);
+  g.add(L);
+  g.position.set(x, 0, z);
+  world.add(g);
+  addCollider(x, z, 0.6, 0.6);
+}
+streetLamp(-13, 7);
+streetLamp(12.6, -3.5);
+
+/* ---- 路障錐 ---- */
+{
+  const coneMat = new THREE.MeshStandardMaterial({ color: 0xf4621f, roughness: 0.7 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.6 });
+  for (const [x, z] of [[-2.2, 1.5], [1.8, 2.4], [-5.5, 3.2]]) {
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.7), coneMat);
+    base.position.y = 0.04; g.add(base);
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.9, 12), coneMat);
+    cone.position.y = 0.49; g.add(cone);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.235, 0.16, 12), whiteMat);
+    band.position.y = 0.5; g.add(band);
+    g.position.set(x, 0, z);
+    world.add(g);
+  }
+}
+
+
+/* =========================================================
+   4. 火焰系統
+   ========================================================= */
+const FIRE_DEFS = [
+  { p: [-7.6, 0.12, -8.35], r: 1.9 },
+  { p: [0.0, 0.14, -8.20], r: 2.0 },
+  { p: [7.2, 0.12, -8.35], r: 1.9 },
+  { p: [-3.4, 3.60, -8.40], r: 1.55 },
+  { p: [4.8, 3.65, -8.40], r: 1.5 },
+  { p: [0.6, 6.20, -8.35], r: 1.45 },
+];
+
+let gameTime = 0;
+
+const glowMat = new THREE.SpriteMaterial({ map: flameTex, color: 0xff7a2a, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false });
+
+class Fire {
+  constructor(def, idx) {
+    this.idx = idx;
+    this.pos = new THREE.Vector3(...def.p);
+    this.radius = def.r;
+    this.max = 100;
+    this.health = 100;
+    this.out = false;
+    this.outT = 0;
+    this.lastHit = -99;
+    this.seed = Math.random() * 10;
+
+    this.group = new THREE.Group();
+    this.group.position.copy(this.pos);
+    scene.add(this.group);
+
+    this.glow = new THREE.Sprite(glowMat.clone());
+    this.glow.scale.set(this.radius * 2.2, this.radius * 1.8, 1);
+    this.glow.position.y = this.radius * 0.7;
+    this.group.add(this.glow);
+
+    this.sprites = [];
+    const layers = [
+      { s: 1.0, x: 0, z: 0, c: 0xff9a45, o: 0.95 },
+      { s: 0.72, x: -0.5, z: 0.2, c: 0xffb264, o: 0.8 },
+      { s: 0.66, x: 0.52, z: -0.12, c: 0xff8a34, o: 0.78 },
+      { s: 0.42, x: 0.06, z: 0.3, c: 0xffe2b0, o: 0.65 },
+    ];
+    for (const L of layers) {
+      const m = new THREE.SpriteMaterial({ map: flameTex, color: L.c, transparent: true, opacity: L.o, blending: THREE.AdditiveBlending, depthWrite: false });
+      const sp = new THREE.Sprite(m);
+      const w = this.radius * 1.15 * L.s;
+      const h = this.radius * (1.5 + L.s * 0.75);
+      sp.scale.set(w, h, 1);
+      sp.position.set(L.x * this.radius * 0.55, h * 0.5 - this.radius * 0.12, L.z * this.radius * 0.5);
+      this.group.add(sp);
+      this.sprites.push({ sp, bx: w, by: h, off: Math.random() * 6, m });
+    }
+
+    this.light = new THREE.PointLight(0xff7f2e, 11, this.radius * 6.5, 2);
+    this.light.position.y = this.radius * 0.9;
+    this.group.add(this.light);
+  }
+
+  get intensity() { return this.out ? 0 : clamp(this.health / this.max, 0, 1); }
+
+  hit(dmg) {
+    if (this.out) return false;
+    this.health -= dmg;
+    this.lastHit = gameTime;
+    if (this.health <= 0) { this.health = 0; this.extinguish(); return true; }
+    return false;
+  }
+
+  extinguish() {
+    this.out = true;
+    this.outT = 0;
+    puffBurst(this.pos.clone().add(new THREE.Vector3(0, this.radius * 0.8, 0)), 7, 0xc9d2de, 1.1);
+    sfx.extinguish();
+  }
+
+  update(dt, t) {
+    const tt = t + this.seed;
+    if (this.out) {
+      this.outT += dt;
+      const k = clamp(1 - this.outT / 1.1, 0, 1);
+      for (const s of this.sprites) s.m.opacity = 0.9 * k * k;
+      this.glow.material.opacity = 0.12 * k;
+      this.light.intensity = 11 * k * k;
+      this.group.visible = k > 0.01;
+      return;
+    }
+    // 未救熄：若長時間冇水，火會再增強
+    if (gameTime - this.lastHit > 2.5 && this.health < this.max) {
+      this.health = Math.min(this.max, this.health + 3.2 * dt);
+    }
+    const power = 0.45 + 0.55 * this.intensity;
+    for (const s of this.sprites) {
+      const f = 0.86 + 0.14 * Math.sin(tt * 7.3) + 0.07 * Math.sin(tt * 15.1);
+      s.sp.scale.set(s.bx * f, s.by * (1.02 + 0.13 * Math.sin(tt * 5.7 + s.off)), 1);
+      s.m.opacity = (0.55 + 0.4 * power) * (0.82 + 0.18 * Math.sin(tt * 11 + s.off));
+    }
+    this.glow.material.opacity = 0.05 + 0.09 * power;
+    this.light.intensity = (6 + 11 * power) * (0.82 + 0.18 * Math.sin(tt * 13.7));
+    this.light.distance = this.radius * (6.5 + 1.2 * Math.sin(tt * 3.1));
+  }
+}
+
+const fires = FIRE_DEFS.map((d, i) => new Fire(d, i));
+
+/* ---- 煙 / 蒸氣粒子（Sprite 池） ---- */
+const puffPool = [];
+for (let i = 0; i < 40; i++) {
+  const m = new THREE.SpriteMaterial({ map: smokeTex, color: 0xcfd6e2, transparent: true, opacity: 0, depthWrite: false });
+  const sp = new THREE.Sprite(m);
+  sp.visible = false;
+  scene.add(sp);
+  puffPool.push({ sp, m, life: 0, maxLife: 1, vel: new THREE.Vector3(), grow: 1 });
+}
+function puffBurst(pos, count, color, power) {
+  let used = 0;
+  for (const p of puffPool) {
+    if (p.life > 0) continue;
+    p.life = p.maxLife = rand(0.9, 1.9) * (0.7 + power * 0.3);
+    p.vel.set(rand(-1, 1), rand(0.6, 2.2), rand(-1, 1)).multiplyScalar(0.9);
+    p.grow = rand(1.6, 3.0) * (0.55 + power * 0.45);
+    p.sp.position.copy(pos).add(new THREE.Vector3(rand(-0.5, 0.5), rand(-0.2, 0.5), rand(-0.5, 0.5)));
+    p.sp.scale.set(0.8, 0.8, 1);
+    p.m.color.setHex(color);
+    p.m.opacity = 0.38;
+    p.sp.visible = true;
+    if (++used >= count) break;
+  }
+}
+function updatePuffs(dt) {
+  for (const p of puffPool) {
+    if (p.life <= 0) continue;
+    p.life -= dt;
+    if (p.life <= 0) { p.sp.visible = false; p.m.opacity = 0; continue; }
+    const k = p.life / p.maxLife;
+    p.vel.y += dt * 0.7;
+    p.vel.multiplyScalar(1 - dt * 0.8);
+    p.sp.position.addScaledVector(p.vel, dt);
+    const s = 0.8 + (1 - k) * p.grow;
+    p.sp.scale.set(s, s, 1);
+    p.m.opacity = 0.5 * k * k;
+  }
+}
+// 火場上空煙柱
+const smokeColumn = [];
+for (const f of fires) {
+  for (let i = 0; i < 3; i++) {
+    const m = new THREE.SpriteMaterial({ map: smokeTex, color: 0x5a606c, transparent: true, opacity: 0.18, depthWrite: false });
+    const sp = new THREE.Sprite(m);
+    sp.position.copy(f.pos).add(new THREE.Vector3(rand(-1.6, 1.6), rand(2, 6), rand(-1, 1)));
+    sp.scale.set(rand(3, 5.5), rand(3, 5.5), 1);
+    scene.add(sp);
+    smokeColumn.push({ sp, m, base: sp.position.clone(), spd: rand(0.25, 0.6), off: Math.random() * 6 });
+  }
+}
+function updateSmoke(dt, t) {
+  for (const s of smokeColumn) {
+    s.sp.position.y += s.spd * dt;
+    s.sp.position.x += Math.sin(t * 0.5 + s.off) * dt * 0.35;
+    if (s.sp.position.y > s.base.y + 9) {
+      s.sp.position.y = s.base.y;
+      s.sp.position.x = s.base.x + rand(-0.6, 0.6);
+    }
+  }
+}
+
+/* ---- 火星 ---- */
+const EMBER_N = 200;
+const emberPos = new Float32Array(EMBER_N * 3);
+const emberVel = new Float32Array(EMBER_N * 3);
+const emberLife = new Float32Array(EMBER_N);
+for (let i = 0; i < EMBER_N; i++) emberPos[i * 3 + 1] = -999;
+const emberGeo = new THREE.BufferGeometry();
+emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
+const embers = new THREE.Points(emberGeo, new THREE.PointsMaterial({
+  map: sparkTex, color: 0xffb15a, size: 0.24, transparent: true, opacity: 0.95,
+  blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+}));
+scene.add(embers);
+
+function spawnEmber() {
+  const active = fires.filter(f => !f.out);
+  if (!active.length) return;
+  const f = active[(Math.random() * active.length) | 0];
+  for (let i = 0; i < EMBER_N; i++) {
+    if (emberLife[i] > 0) continue;
+    emberLife[i] = rand(0.8, 2.0);
+    emberPos[i * 3] = f.pos.x + rand(-f.radius * 0.7, f.radius * 0.7);
+    emberPos[i * 3 + 1] = f.pos.y + rand(0, f.radius);
+    emberPos[i * 3 + 2] = f.pos.z + rand(-0.4, 0.6);
+    emberVel[i * 3] = rand(-0.5, 0.5);
+    emberVel[i * 3 + 1] = rand(1.2, 3.2);
+    emberVel[i * 3 + 2] = rand(0.1, 0.9);
+    return;
+  }
+}
+function updateEmbers(dt, t) {
+  for (let i = 0; i < EMBER_N; i++) {
+    if (emberLife[i] <= 0) continue;
+    emberLife[i] -= dt;
+    if (emberLife[i] <= 0) { emberPos[i * 3 + 1] = -999; continue; }
+    emberVel[i * 3 + 1] += dt * 0.35;
+    emberPos[i * 3] += (emberVel[i * 3] + Math.sin(t * 2 + i) * 0.35) * dt;
+    emberPos[i * 3 + 1] += emberVel[i * 3 + 1] * dt;
+    emberPos[i * 3 + 2] += emberVel[i * 3 + 2] * dt;
+  }
+  emberGeo.attributes.position.needsUpdate = true;
+}
+
+/* =========================================================
+   5. 水柱系統
+   ========================================================= */
+const WATER_N = 1100;
+const wPos = new Float32Array(WATER_N * 3);
+const wVel = new Float32Array(WATER_N * 3);
+const wLife = new Float32Array(WATER_N);
+for (let i = 0; i < WATER_N; i++) wPos[i * 3 + 1] = -999;
+const waterGeo = new THREE.BufferGeometry();
+waterGeo.setAttribute('position', new THREE.BufferAttribute(wPos, 3));
+const WATER_PX = () => (window.innerHeight * renderer.getPixelRatio()) / (2 * Math.tan(camera.fov * Math.PI / 360));
+const waterMat = new THREE.ShaderMaterial({
+  uniforms: { map: { value: dropTex }, uScale: { value: 550 }, uSize: { value: 0.3 } },
+  vertexShader: `
+    uniform float uScale; uniform float uSize;
+    void main(){
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      float d = max(-mv.z, 0.15);
+      gl_PointSize = clamp(uSize * uScale / d, 1.5, 22.0);
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    uniform sampler2D map;
+    void main(){
+      vec4 t = texture2D(map, gl_PointCoord);
+      if (t.a < 0.02) discard;
+      gl_FragColor = vec4(0.84, 0.95, 1.0, t.a * 0.95);
+    }`,
+  transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+});
+waterMat.uniforms.uScale.value = WATER_PX();
+const water = new THREE.Points(waterGeo, waterMat);
+water.frustumCulled = false;
+scene.add(water);
+
+const nozzle = new THREE.Group();
+{
+  const metal = new THREE.MeshStandardMaterial({ color: 0x4a5560, emissive: 0x161c24, emissiveIntensity: 1, roughness: 0.4, metalness: 0.8 });
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x222831, emissive: 0x0a0d11, emissiveIntensity: 1, roughness: 0.95 });
+
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.062, 0.36, 12), metal);
+  barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0, -0.18); nozzle.add(barrel);
+
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.072, 0.055, 12), rubber);
+  collar.rotation.x = Math.PI / 2; collar.position.set(0, 0, -0.36); nozzle.add(collar);
+
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.12, 12),
+    new THREE.MeshStandardMaterial({ color: 0xc6d0dc, emissive: 0x2b3542, emissiveIntensity: 1, roughness: 0.3, metalness: 0.9 }));
+  tip.rotation.x = -Math.PI / 2; tip.position.set(0, 0, -0.45); nozzle.add(tip);
+
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.18, 8), rubber);
+  grip.position.set(0, -0.11, -0.05); nozzle.add(grip);
+
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.082, 12, 10), rubber);
+  hand.scale.set(1, 1.2, 0.95); hand.position.set(0, -0.1, 0.07); nozzle.add(hand);
+
+  nozzle.position.set(0.3, -0.36, -0.86);
+  nozzle.rotation.set(0.03, -0.08, 0.03);
+  nozzle.scale.setScalar(0.62);
+  if (!isTouch) { camera.add(nozzle); scene.add(camera); }
+}
+
+let waterWrite = 0;
+const _fwd = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
+const _muzzle = new THREE.Vector3();
+
+function emitWater(dt, spraying) {
+  if (!spraying || state.water <= 0) { sfx.setSpray(0); return; }
+  sfx.setSpray(0.85);
+  const rate = 170;
+  sprayAccum += rate * dt;
+  const n = Math.floor(sprayAccum);
+  sprayAccum -= n;
+
+  camera.getWorldDirection(_fwd);
+  _right.set(1, 0, 0).applyQuaternion(camera.quaternion);
+  _up.set(0, 1, 0).applyQuaternion(camera.quaternion);
+  _muzzle.set(0.28, -0.33, -1.12).applyMatrix4(camera.matrixWorld);
+
+  for (let k = 0; k < n; k++) {
+    const i = waterWrite;
+    waterWrite = (waterWrite + 1) % WATER_N;
+    wLife[i] = rand(0.75, 1.15);
+    const spread = 0.028;
+    const dx = _fwd.x + (_right.x * rand(-spread, spread) + _up.x * rand(-spread, spread));
+    const dy = _fwd.y + (_right.y * rand(-spread, spread) + _up.y * rand(-spread, spread)) + 0.012;
+    const dz = _fwd.z + (_right.z * rand(-spread, spread) + _up.z * rand(-spread, spread));
+    const sp = rand(23, 27);
+    wPos[i * 3] = _muzzle.x + rand(-0.04, 0.04);
+    wPos[i * 3 + 1] = _muzzle.y + rand(-0.04, 0.04);
+    wPos[i * 3 + 2] = _muzzle.z + rand(-0.04, 0.04);
+    wVel[i * 3] = dx * sp;
+    wVel[i * 3 + 1] = dy * sp;
+    wVel[i * 3 + 2] = dz * sp;
+  }
+}
+
+let sprayAccum = 0;
+
+function updateWater(dt) {
+  let hitCount = 0;
+  for (let i = 0; i < WATER_N; i++) {
+    if (wLife[i] <= 0) continue;
+    wLife[i] -= dt;
+    if (wLife[i] <= 0) { wPos[i * 3 + 1] = -999; continue; }
+    wVel[i * 3 + 1] -= 9.8 * dt;
+    wPos[i * 3] += wVel[i * 3] * dt;
+    wPos[i * 3 + 1] += wVel[i * 3 + 1] * dt;
+    wPos[i * 3 + 2] += wVel[i * 3 + 2] * dt;
+
+    const px = wPos[i * 3], py = wPos[i * 3 + 1], pz = wPos[i * 3 + 2];
+
+    // 命中火焰？
+    let hit = false;
+    for (const f of fires) {
+      if (f.out) continue;
+      const ddx = px - f.pos.x, ddy = py - f.pos.y - f.radius * 0.7, ddz = pz - f.pos.z;
+      if (ddx * ddx + ddy * ddy + ddz * ddz < (f.radius * 1.05) ** 2) {
+        const done = f.hit(4.4);
+        hit = true; hitCount++;
+        if (Math.random() < 0.12) puffBurst(new THREE.Vector3(px, py, pz), 1, 0xdde5ee, 0.25);
+        if (done) onFireOut(f);
+        break;
+      }
+    }
+    // 打到牆 / 地面就消失
+    if (!hit) {
+      if (py < 0.03) hit = true;
+      else if (pz < -8.9 && Math.abs(px) < 13.2 && py < 16) hit = true;
+    }
+    if (hit) { wPos[i * 3 + 1] = -999; wLife[i] = 0; }
+  }
+  if (hitCount > 0 && Math.random() < 0.12) sfx.hiss();
+  waterGeo.attributes.position.needsUpdate = true;
+}
+
+
+/* =========================================================
+   6. 居民
+   ========================================================= */
+const CIV_DEFS = [
+  { p: [-9.4, 0, -4.4], coat: 0x4b6b9a, name: '伯伯' },
+  { p: [3.4, 0, -2.6], coat: 0x8c5a86, name: '小朋友' },
+  { p: [10.4, 0, -0.8], coat: 0x6a7d4a, name: '女士' },
+];
+
+class Civilian {
+  constructor(def, idx) {
+    this.pos = new THREE.Vector3(...def.p);
+    this.idx = idx;
+    this.rescued = false;
+    this.runT = 0;
+    this.group = new THREE.Group();
+    this.group.position.copy(this.pos);
+    scene.add(this.group);
+
+    const skin = new THREE.MeshStandardMaterial({ color: 0xd9a97e, roughness: 0.85 });
+    const coat = new THREE.MeshStandardMaterial({ color: def.coat, roughness: 0.9 });
+    const pants = new THREE.MeshStandardMaterial({ color: 0x2f3540, roughness: 0.92 });
+
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.23, 0.55, 4, 10), coat);
+    body.position.y = 0.95; body.castShadow = true; this.group.add(body);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.175, 14, 12), skin);
+    head.position.y = 1.47; head.castShadow = true; this.group.add(head);
+
+    for (const s of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.085, 0.42, 3, 8), pants);
+      leg.position.set(s * 0.11, 0.36, 0);
+      this.group.add(leg);
+      const armPivot = new THREE.Group();
+      armPivot.position.set(s * 0.26, 1.12, 0);
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.36, 3, 8), coat);
+      arm.position.y = -0.22;
+      armPivot.add(arm);
+      armPivot.userData.side = s;
+      this.group.add(armPivot);
+      if (s < 0) this.armL = armPivot; else this.armR = armPivot;
+    }
+
+    // 標記（穿牆可見）
+    const markMat = new THREE.SpriteMaterial({ map: dropTex, color: 0x8fe3ff, transparent: true, opacity: 0.75, depthTest: false, depthWrite: false });
+    this.mark = new THREE.Sprite(markMat);
+    this.mark.scale.set(0.34, 0.34, 1);
+    this.mark.position.y = 2.05;
+    this.group.add(this.mark);
+
+    this.markRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.2, 0.26, 24),
+      new THREE.MeshBasicMaterial({ color: 0x8fe3ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthTest: false })
+    );
+    this.markRing.position.y = 0.03;
+    this.markRing.rotation.x = -Math.PI / 2;
+    this.group.add(this.markRing);
+  }
+
+  update(dt, t) {
+    if (this.rescued) {
+      this.runT += dt;
+      if (this.runT < 3.2) {
+        const dir = new THREE.Vector3(0, 0, 16).sub(this.group.position).normalize();
+        this.group.position.addScaledVector(dir, dt * 3.4);
+        this.group.rotation.y = Math.atan2(dir.x, dir.z);
+        this.armL.rotation.x = Math.sin(t * 14) * 0.8;
+        this.armR.rotation.x = -Math.sin(t * 14) * 0.8;
+        this.group.position.y = Math.abs(Math.sin(t * 12)) * 0.08;
+      } else if (this.group.visible) {
+        this.group.visible = false;
+      }
+      return;
+    }
+    // 揮手求救
+    this.armR.rotation.z = 2.35 + Math.sin(t * 6 + this.idx) * 0.4;
+    this.armL.rotation.z = -0.25 + Math.sin(t * 3 + this.idx) * 0.08;
+    this.mark.position.y = 2.05 + Math.sin(t * 2.4 + this.idx) * 0.09;
+    this.mark.material.opacity = 0.55 + 0.35 * Math.abs(Math.sin(t * 2.4));
+    this.markRing.scale.setScalar(1 + 0.12 * Math.sin(t * 3 + this.idx));
+    this.markRing.material.opacity = 0.35 + 0.2 * Math.sin(t * 3 + this.idx);
+  }
+}
+const civilians = CIV_DEFS.map((d, i) => new Civilian(d, i));
+
+/* =========================================================
+   7. 音效（全部程序化產生）
+   ========================================================= */
+const sfx = {
+  ctx: null, master: null, sprayGain: null, fireGain: null, muted: false, ready: false,
+  init() {
+    if (this.ready) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = this.ctx = new AC();
+    this.master = ctx.createGain();
+    this.master.gain.value = 0.9;
+    this.master.connect(ctx.destination);
+
+    // 噪音源
+    const len = ctx.sampleRate * 2;
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      const white = Math.random() * 2 - 1;
+      last = (last + 0.02 * white) / 1.02;
+      d[i] = last * 3.2;
+    }
+    this.noiseBuf = buf;
+
+    // 水聲
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass'; bp.frequency.value = 1400; bp.Q.value = 0.7;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(bp).connect(g).connect(this.master);
+    src.start();
+    this.sprayGain = g;
+
+    // 火聲
+    const src2 = ctx.createBufferSource();
+    src2.buffer = buf; src2.loop = true;
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.value = 420;
+    const g2 = ctx.createGain(); g2.gain.value = 0.0;
+    src2.connect(lp).connect(g2).connect(this.master);
+    src2.start();
+    this.fireGain = g2;
+    this.ready = true;
+  },
+  setSpray(v) {
+    if (!this.ready) return;
+    this.sprayGain.gain.setTargetAtTime(v * 0.16, this.ctx.currentTime, 0.06);
+  },
+  setFire(v) {
+    if (!this.ready) return;
+    this.fireGain.gain.setTargetAtTime(v * 0.12, this.ctx.currentTime, 0.4);
+  },
+  blip(freq, dur, type = 'sine', vol = 0.12) {
+    if (!this.ready || this.muted) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+    o.connect(g).connect(this.master);
+    o.start(); o.stop(ctx.currentTime + dur + 0.05);
+  },
+  hiss() {
+    if (!this.ready || this.muted) return;
+    const ctx = this.ctx;
+    const s = ctx.createBufferSource(); s.buffer = this.noiseBuf;
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2600;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.09, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+    s.connect(hp).connect(g).connect(this.master);
+    s.start(); s.stop(ctx.currentTime + 0.25);
+  },
+  extinguish() {
+    if (!this.ready || this.muted) return;
+    const ctx = this.ctx;
+    const s = ctx.createBufferSource(); s.buffer = this.noiseBuf;
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(2200, ctx.currentTime);
+    bp.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.8);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.22, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.85);
+    s.connect(bp).connect(g).connect(this.master);
+    s.start(); s.stop(ctx.currentTime + 0.9);
+  },
+  rescue() { this.blip(660, 0.16, 'sine', 0.13); setTimeout(() => this.blip(990, 0.25, 'sine', 0.12), 130); },
+  siren() {
+    if (!this.ready || this.muted) return;
+    const ctx = this.ctx;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(520, ctx.currentTime);
+    o.frequency.linearRampToValueAtTime(880, ctx.currentTime + 0.9);
+    o.frequency.linearRampToValueAtTime(520, ctx.currentTime + 1.8);
+    g.gain.setValueAtTime(0, ctx.currentTime);
+    g.gain.linearRampToValueAtTime(0.05, ctx.currentTime + 0.3);
+    g.gain.linearRampToValueAtTime(0, ctx.currentTime + 2.4);
+    o.connect(g).connect(this.master);
+    o.start(); o.stop(ctx.currentTime + 2.45);
+  },
+  winJingle() { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.blip(f, 0.45, 'triangle', 0.11), i * 140)); },
+  loseJingle() { [330, 262, 196].forEach((f, i) => setTimeout(() => this.blip(f, 0.6, 'sawtooth', 0.07), i * 200)); }
+};
+
+/* =========================================================
+   8. 狀態 / 玩家 / 控制
+   ========================================================= */
+const state = {
+  phase: 'menu', hp: 100, water: 100, score: 0, time: 180,
+  outCount: 0, rescueCount: 0, muted: false, shake: 0, lastHurt: 0,
+};
+const player = { x: 0, z: 12.5, yaw: 0, pitch: -0.03, bob: 0, moving: 0 };
+const input = { mx: 0, mz: 0, spray: false, touchSpray: false, joyX: 0, joyY: 0, joyActive: false };
+const keys = Object.create(null);
+let dragging = false, lastPX = 0, lastPY = 0;
+let lastSprayTime = -9;
+
+window.addEventListener('keydown', (e) => {
+  keys[e.key.toLowerCase()] = true;
+  if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) e.preventDefault();
+  if (state.phase !== 'playing') return;
+  if (e.key.toLowerCase() === 'e') tryRescue();
+  if (e.key === 'Escape' && document.pointerLockElement) document.exitPointerLock();
+});
+window.addEventListener('keyup', (e) => { keys[e.key.toLowerCase()] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+// 滑鼠 / 觸控環視
+canvas.addEventListener('pointerdown', (e) => {
+  if (state.phase !== 'playing') return;
+  dragging = true; lastPX = e.clientX; lastPY = e.clientY;
+  if (e.pointerType === 'mouse') {
+    input.spray = true;
+    if (!document.pointerLockElement && canvas.requestPointerLock) {
+      try { canvas.requestPointerLock(); } catch (_) {}
+    }
+  }
+});
+window.addEventListener('pointermove', (e) => {
+  if (state.phase !== 'playing') return;
+  if (document.pointerLockElement === canvas) {
+    player.yaw -= e.movementX * 0.0023;
+    player.pitch = clamp(player.pitch - e.movementY * 0.0023, -1.05, 0.95);
+  } else if (dragging) {
+    player.yaw -= (e.clientX - lastPX) * (isTouch ? 0.006 : 0.0035);
+    player.pitch = clamp(player.pitch - (e.clientY - lastPY) * (isTouch ? 0.006 : 0.0035), -1.05, 0.95);
+    lastPX = e.clientX; lastPY = e.clientY;
+  }
+});
+window.addEventListener('pointerup', () => { dragging = false; input.spray = false; });
+window.addEventListener('pointercancel', () => { dragging = false; input.spray = false; });
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// 虛擬搖桿
+const stick = $('stick'), knob = $('knob');
+let stickId = null, stickCX = 0, stickCY = 0;
+function stickStart(e) {
+  e.preventDefault(); e.stopPropagation();
+  stickId = e.pointerId;
+  const r = stick.getBoundingClientRect();
+  stickCX = r.left + r.width / 2; stickCY = r.top + r.height / 2;
+  input.joyActive = true;
+  stickMove(e);
+  stick.setPointerCapture?.(e.pointerId);
+}
+function stickMove(e) {
+  if (stickId !== e.pointerId) return;
+  e.preventDefault();
+  const r = stick.getBoundingClientRect();
+  const max = r.width / 2 - 14;
+  let dx = e.clientX - stickCX, dy = e.clientY - stickCY;
+  const len = Math.hypot(dx, dy);
+  if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+  knob.style.transform = `translate(${dx}px,${dy}px)`;
+  input.joyX = dx / max; input.joyY = dy / max;
+}
+function stickEnd(e) {
+  if (stickId !== e.pointerId) return;
+  stickId = null; input.joyActive = false; input.joyX = 0; input.joyY = 0;
+  knob.style.transform = 'translate(0,0)';
+}
+stick.addEventListener('pointerdown', stickStart);
+stick.addEventListener('pointermove', stickMove);
+stick.addEventListener('pointerup', stickEnd);
+stick.addEventListener('pointercancel', stickEnd);
+
+const btnSpray = $('btnSpray');
+btnSpray.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); input.touchSpray = true; });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => btnSpray.addEventListener(ev, () => { input.touchSpray = false; }));
+const btnRescue = $('btnRescue');
+btnRescue.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); tryRescue(); });
+
+if (isTouch) { $('touch').style.display = 'block'; document.body.classList.add('touch'); }
+
+/* =========================================================
+   9. 遊戲流程
+   ========================================================= */
+function resetGame() {
+  state.hp = 100; state.water = 100; state.score = 0; state.time = 180;
+  state.outCount = 0; state.rescueCount = 0; state.shake = 0;
+  player.x = 0; player.z = 12.5; player.yaw = 0; player.pitch = -0.03; player.bob = 0;
+  lastSprayTime = gameTime - 9;
+  for (const f of fires) {
+    f.out = false; f.health = f.max; f.outT = 0; f.group.visible = true;
+    f.lastHit = -99;
+    f.light.intensity = 26;
+    f.glow.material.opacity = 0.12;
+    for (const s of f.sprites) s.m.opacity = 0.9;
+  }
+  for (const c of civilians) {
+    c.rescued = false; c.runT = 0;
+    c.group.visible = true;
+    c.group.position.copy(c.pos);
+    c.group.rotation.y = Math.PI; // 面向街道
+  }
+  for (let i = 0; i < WATER_N; i++) { wLife[i] = 0; wPos[i * 3 + 1] = -999; }
+  for (const p of puffPool) { p.life = 0; p.sp.visible = false; }
+  updateHUD(true);
+}
+
+function startGame() {
+  sfx.init();
+  input.spray = false; input.touchSpray = false; dragging = false;
+  state.lastHurt = gameTime - 9;
+  $('btnPause').textContent = '暫停';
+  sfx.siren();
+  resetGame();
+  state.phase = 'playing';
+  $('start').classList.add('hidden');
+  $('end').classList.add('hidden');
+  $('hud').classList.remove('hidden');
+  if (isTouch) { $('touch').style.display = 'block'; $('touch').classList.remove('hidden'); }
+  document.body.style.cursor = 'crosshair';
+  toast('任務開始：撲滅 6 處火頭，救出 3 位居民', 'good');
+}
+
+function endGame(won) {
+  if (state.phase !== 'playing') return;
+  state.phase = 'over';
+  if (document.pointerLockElement) document.exitPointerLock();
+  sfx.setSpray(0);
+  const timeLeft = Math.max(0, state.time);
+  const timeBonus = won ? Math.round(timeLeft) * 10 : 0;
+  if (won) state.score += timeBonus;
+  $('endTag').textContent = won ? 'MISSION COMPLETE' : 'MISSION FAILED';
+  $('endTitle').textContent = won ? '任務完成' : '任務失敗';
+  $('endSub').textContent = won
+    ? (state.hp > 70 ? '全員平安，火勢迅速受控，表現出色。' : '所有人已救出，你亦保住自己，做得好。')
+    : (state.hp <= 0 ? '你被濃煙與熱浪擊倒，記住保持距離。' : '時間到，仍有火頭未撲熄。');
+  $('endFire').textContent = `${state.outCount} / ${fires.length}`;
+  $('endCiv').textContent = `${state.rescueCount} / ${civilians.length}`;
+  $('endTime').textContent = `${Math.round(timeLeft)}s`;
+  $('endScore').textContent = state.score.toLocaleString('en-US');
+
+  const ratio = (state.outCount + state.rescueCount * 1.5) / (fires.length + civilians.length * 1.5);
+  const stars = won ? (ratio > 0.98 && state.hp > 55 ? 3 : ratio > 0.85 ? 2 : 1) : 0;
+  $('endStars').innerHTML = [0, 1, 2].map(i => `<span class="${i < stars ? '' : 'dim'}">★</span>`).join('');
+  $('endTip').textContent = won
+    ? `時間獎勵 +${timeBonus} 分 · 生命 ${Math.round(state.hp)}%`
+    : '提示：先集中撲滅入口與低層火頭，再救居民。';
+
+  setTimeout(() => {
+    $('end').classList.remove('hidden');
+    $('hud').classList.add('hidden');
+    $('touch').classList.add('hidden'); $('touch').style.display = 'none';
+  }, won ? 500 : 700);
+
+  if (won) sfx.winJingle(); else sfx.loseJingle();
+}
+
+function onFireOut(f) {
+  state.outCount++;
+  state.score += 150;
+  toast('火頭已撲熄 +150', 'good');
+  if (state.outCount === fires.length) toast('所有火頭已撲滅！', 'good');
+  checkWin();
+}
+
+function checkWin() {
+  if (state.phase !== 'playing') return;
+  if (state.outCount >= fires.length && state.rescueCount >= civilians.length) {
+    state.score += 500;
+    endGame(true);
+  }
+}
+
+let toastTimer = [];
+function toast(msg, kind) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  $('toasts').appendChild(el);
+  const t = setTimeout(() => {
+    el.style.transition = 'opacity .35s, transform .35s';
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(-8px)';
+    setTimeout(() => el.remove(), 380);
+  }, 2200);
+  toastTimer.push(t);
+}
+
+function nearestCiv() {
+  let best = null, bd = 1e9;
+  for (const c of civilians) {
+    if (c.rescued) continue;
+    const d = Math.hypot(c.pos.x - player.x, c.pos.z - player.z);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return { civ: best, dist: bd };
+}
+
+function tryRescue() {
+  if (state.phase !== 'playing') return;
+  const { civ, dist } = nearestCiv();
+  if (!civ || dist > 3.6) { toast('附近沒有被困居民', 'bad'); return; }
+  const nearFire = fires.some(f => !f.out && Math.hypot(f.pos.x - civ.pos.x, f.pos.z - civ.pos.z) < 6.5);
+  if (nearFire) { toast('附近仍有火頭，先撲滅火勢！', 'bad'); return; }
+  civ.rescued = true;
+  civ.runT = 0;
+  civ.mark.visible = false;
+  civ.markRing.visible = false;
+  state.rescueCount++;
+  state.score += 300;
+  sfx.rescue();
+  toast(`已救出居民（${CIV_DEFS[civ.idx].name}）+300`, 'good');
+  if (state.rescueCount === civilians.length) toast('所有居民已安全撤離！', 'good');
+  checkWin();
+}
+
+/* ---- 玩家移動 ---- */
+function collide(nx, nz) {
+  const R = 0.42;
+  for (const c of colliders) {
+    if (nx + R > c.x1 && nx - R < c.x2 && nz + R > c.z1 && nz - R < c.z2) return true;
+  }
+  return false;
+}
+
+function updatePlayer(dt) {
+  let fwd = 0, str = 0;
+  if (keys['w'] || keys['arrowup']) fwd += 1;
+  if (keys['s'] || keys['arrowdown']) fwd -= 1;
+  if (keys['a'] || keys['arrowleft']) str -= 1;
+  if (keys['d'] || keys['arrowright']) str += 1;
+  fwd -= input.joyY;
+  str += input.joyX;
+  const len = Math.hypot(fwd, str);
+  if (len > 1) { fwd /= len; str /= len; }
+  player.moving = Math.min(1, len);
+
+  const speed = (keys['shift'] ? 7.4 : 4.4);
+  const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+  const dx = (-sy * fwd + cy * str) * speed * dt;
+  const dz = (-cy * fwd - sy * str) * speed * dt;
+
+  if (!collide(player.x + dx, player.z)) player.x += dx;
+  if (!collide(player.x, player.z + dz)) player.z += dz;
+  player.x = clamp(player.x, -34, 34);
+  player.z = clamp(player.z, -6.5, 30);
+  player.bob += dt * (player.moving > 0.1 ? 9 * (keys['shift'] ? 1.35 : 1) : 0);
+
+  const bobY = Math.sin(player.bob) * 0.045 * player.moving;
+  const bobX = Math.cos(player.bob * 0.5) * 0.03 * player.moving;
+  state.shake = Math.max(0, state.shake - dt * 2.2);
+  const sh = state.shake;
+
+  camera.position.set(
+    player.x + bobX + (Math.random() - 0.5) * sh * 0.22,
+    1.66 + bobY + (Math.random() - 0.5) * sh * 0.16,
+    player.z
+  );
+  camera.rotation.set(player.pitch + (Math.random() - 0.5) * sh * 0.02, player.yaw, Math.sin(player.bob * 0.5) * 0.008 * player.moving);
+}
+
+/* ---- 火場傷害 ---- */
+function updateHazard(dt) {
+  let dmg = 0;
+  for (const f of fires) {
+    if (f.out) continue;
+    const d = Math.hypot(f.pos.x - player.x, f.pos.z - player.z);
+    const reach = f.radius * 1.9;
+    if (d < reach) dmg += (1 - d / reach) * 26 * (0.4 + 0.6 * f.intensity);
+  }
+  if (dmg > 0) {
+    state.hp = Math.max(0, state.hp - dmg * dt);
+    state.lastHurt = gameTime;
+    state.shake = Math.min(1.1, state.shake + dt * 2.4);
+  } else if (gameTime - state.lastHurt > 4) {
+    state.hp = Math.min(100, state.hp + 3.5 * dt);
+  }
+  const dmgEl = $('dmg');
+  const heat = dmg > 0 ? clamp(0.35 + dmg / 40, 0, 0.9) : clamp((1 - state.hp / 100) * 0.5, 0, 0.5);
+  dmgEl.style.opacity = heat.toFixed(2);
+  if (state.hp <= 0) endGame(false);
+}
+
+/* ---- HUD ---- */
+let hudTick = 0;
+function updateHUD(force) {
+  $('statFire').textContent = `${state.outCount} / ${fires.length}`;
+  $('statCiv').textContent = `${state.rescueCount} / ${civilians.length}`;
+  $('score').textContent = state.score.toLocaleString('en-US');
+  const t = Math.max(0, Math.ceil(state.time));
+  const mm = String(Math.floor(t / 60)).padStart(2, '0');
+  const ss = String(t % 60).padStart(2, '0');
+  $('timer').textContent = `${mm}:${ss}`;
+  $('timer').classList.toggle('warn', t <= 30);
+  $('hpFill').style.width = clamp(state.hp, 0, 100) + '%';
+  $('waterFill').style.width = clamp(state.water, 0, 100) + '%';
+  $('hpTxt').textContent = Math.round(state.hp);
+  $('waterTxt').textContent = Math.round(state.water) + '%';
+  $('waterFill').style.opacity = state.water < 15 ? 0.55 : 1;
+
+  const { civ, dist } = nearestCiv();
+  let hint;
+  if (state.phase !== 'playing') hint = '';
+  else if (state.water <= 0) hint = '水量耗盡，等待水壓回升…';
+  else if (civ && dist < 3.6) {
+    const blocked = fires.some(f => !f.out && Math.hypot(f.pos.x - civ.pos.x, f.pos.z - civ.pos.z) < 6.5);
+    hint = blocked ? '先撲滅附近火頭，才可以救人' : (isTouch ? '按「救援」救出居民' : '按 E 救出居民');
+  } else hint = isTouch ? '左搖桿移動 · 拖曳畫面環視 · 按住噴水' : '按住左鍵噴水 · WASD 移動 · E 救人';
+  $('hint').textContent = hint;
+  if (btnRescue) btnRescue.disabled = !(civ && dist < 3.6) || state.phase !== 'playing';
+}
+
+/* ---- 每幀更新 ---- */
+let tGlobal = 0;
+function update(dt) {
+  tGlobal += dt;
+  gameTime += dt;
+  state.time -= dt;
+  if (state.time <= 0) { state.time = 0; endGame(false); return; }
+
+  updatePlayer(dt);
+  camera.updateMatrixWorld(true);
+
+  const wantSpray = (input.spray || input.touchSpray || keys[' ']) && state.water > 0;
+  if (wantSpray) {
+    state.water = Math.max(0, state.water - 9 * dt);
+    lastSprayTime = gameTime;
+  } else if (gameTime - lastSprayTime > 0.65) {
+    state.water = Math.min(100, state.water + 22 * dt);
+  }
+  emitWater(dt, wantSpray);
+  if (!wantSpray) sfx.setSpray(0);
+
+  updateWater(dt);
+  for (const f of fires) f.update(dt, tGlobal);
+  for (const c of civilians) c.update(dt, tGlobal);
+  updatePuffs(dt);
+  updateSmoke(dt, tGlobal);
+  updateEmbers(dt, tGlobal);
+  updateHazard(dt);
+
+  // 環境火焰音量
+  const alive = fires.filter(f => !f.out).length;
+  sfx.setFire(alive / fires.length);
+
+  // 定時噴火星
+  if (Math.random() < dt * 26) spawnEmber();
+
+  hudTick += dt;
+  if (hudTick > 0.1) { hudTick = 0; updateHUD(); }
+}
+
+/* ---- 主畫面鏡頭 ---- */
+function menuUpdate(dt) {
+  tGlobal += dt;
+  const t = tGlobal * 0.16;
+  camera.position.set(Math.sin(t) * 9.5, 3.4 + Math.sin(t * 0.8) * 0.5, 6.5 + Math.cos(t) * 7.5);
+  camera.lookAt(0, 5.2, -9);
+  for (const f of fires) f.update(dt, tGlobal);
+  updatePuffs(dt);
+  updateSmoke(dt, tGlobal);
+  updateEmbers(dt, tGlobal);
+  if (Math.random() < dt * 18) spawnEmber();
+  camera.fov = 72;
+  camera.updateProjectionMatrix();
+}
+
+function updateTruckLights(t) {
+  const m = window.__barMats;
+  if (!m) return;
+  const phase = (t * 3.2) % 2;
+  m.red.emissiveIntensity = phase < 0.55 ? 3.4 : (phase < 1 ? 0.3 : 0.6);
+  m.blue.emissiveIntensity = phase > 0.8 && phase < 1.4 ? 3.4 : 0.3;
+}
+
+/* ---- 迴圈 ---- */
+let lastT = performance.now();
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  if (state.phase === 'playing') update(dt);
+  else if (state.phase === 'menu' || state.phase === 'over') menuUpdate(dt * 0.6);
+  updateTruckLights(performance.now() / 1000);
+  renderer.render(scene, camera);
+}
+
+/* ---- UI 綁定 ---- */
+$('btnStart').addEventListener('click', startGame);
+$('btnAgain').addEventListener('click', startGame);
+$('btnMute').addEventListener('click', () => {
+  sfx.muted = !sfx.muted;
+  if (sfx.master) sfx.master.gain.value = sfx.muted ? 0 : 0.9;
+  $('btnMute').classList.toggle('off', sfx.muted);
+  $('btnMute').textContent = sfx.muted ? '靜音' : '音效';
+});
+$('btnPause').addEventListener('click', () => {
+  if (state.phase === 'playing') {
+    state.phase = 'paused';
+    sfx.setSpray(0); sfx.setFire(0);
+    toast('已暫停 · 再按一次繼續');
+    $('btnPause').textContent = '繼續';
+  } else if (state.phase === 'paused') {
+    state.phase = 'playing';
+    $('btnPause').textContent = '暫停';
+  }
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.phase === 'playing') {
+    state.phase = 'paused';
+    sfx.setSpray(0);
+    $('btnPause').textContent = '繼續';
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  waterMat.uniforms.uScale.value = WATER_PX();
+});
+
+/* ---- 對外測試接口 ---- */
+window.__FF = {
+  state, player, fires, civilians, startGame, tryRescue, endGame, waterMat, water, scene, camera,
+  look: (yaw, pitch) => { player.yaw = yaw; player.pitch = pitch; },
+  move: (x, z) => { player.x = x; player.z = z; },
+  spray: (on) => { input.spray = !!on; },
+  debugWater: () => {
+    let n = 0, zsum = 0, ysum = 0, minZ = 99;
+    for (let i = 0; i < WATER_N; i++) { if (wLife[i] > 0) { n++; zsum += wPos[i*3+2]; ysum += wPos[i*3+1]; minZ = Math.min(minZ, wPos[i*3+2]); } }
+    return { active: n, avgZ: +(zsum/Math.max(1,n)).toFixed(2), avgY: +(ysum/Math.max(1,n)).toFixed(2), minZ: +minZ.toFixed(2) };
+  },
+  step: (dt, n) => { for (let i = 0; i < n; i++) { if (state.phase !== 'playing') break; update(dt); } },
+  ready: true
+};
+
+updateHUD(true);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

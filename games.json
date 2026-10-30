@@ -1,0 +1,16 @@
+{
+  "updated": "2026-10-30",
+  "games": [
+    {
+      "slug": "firefighter",
+      "title": "消防英雄 3D",
+      "en": "Fire Rescue 3D",
+      "desc": "第一人稱消防員：180 秒內撲滅六處火頭、救出三位居民。有限水量、生命值與計分系統，支援鍵盤、滑鼠與手機觸控。",
+      "tags": ["3D", "動作", "Three.js"],
+      "date": "2026-10-30",
+      "thumb": "./assets/firefighter.png",
+      "url": "./firefighter/",
+      "featured": true
+    }
+  ]
+}
